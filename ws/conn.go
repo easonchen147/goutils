@@ -363,7 +363,7 @@ func (c *Connection) writeToConnection() {
 			}
 
 			if err := c.sendMsgToWs(ctx, message); err != nil {
-				log.Warn(ctx, "%v send message failed. id: %v, error: %v", c.typ, c.id, err)
+				log.Debug(ctx, "%v send message failed. id: %v, error: %v", c.typ, c.id, err)
 				return
 			}
 
@@ -478,7 +478,8 @@ func (c *Connection) readMsgFromWs() {
 				return
 			}
 
-			if _, ok := err.(*websocket.CloseError); ok || c.IsStopped() {
+			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway,
+				websocket.CloseNoStatusReceived) || c.IsStopped() {
 				log.Debug(ctx, "%v Conn closed. id: %v, ptr: %p, msgType: %v, err: %v",
 					c.typ, c.id, c, messageType, err)
 			} else {
@@ -565,7 +566,7 @@ func (c *Connection) batchSendMsgToWs(ctx context.Context) bool {
 			return false
 		}
 		if err := c.sendMsgToWs(ctx, message); err != nil {
-			log.Warn(ctx, "%v batchSendMsgToWs failed. id: %v, error: %v", c.typ, c.id, err)
+			log.Debug(ctx, "%v batchSendMsgToWs failed. id: %v, error: %v", c.typ, c.id, err)
 			return false
 		}
 	}
@@ -587,7 +588,7 @@ func (c *Connection) sendMsgToWs(ctx context.Context, message *Message) error {
 
 	msgData, err := message.Marshal()
 	if err != nil {
-		log.Error(ctx, "%v Marshal message to pb failed. error: %v", c.typ, err)
+		log.Warn(ctx, "%v Marshal message to pb failed. error: %v", c.typ, err)
 		c.callback(ctx, message.sc, err)
 		return err
 	}
@@ -644,12 +645,13 @@ func (c *Connection) doSendMsgToWs(ctx context.Context, data []byte) error {
 				continue
 			}
 
-			log.Warn(ctx, "%v Write close failed and reach max times. id: %v, ptr: %p, error: %v",
+			log.Info(ctx, "%v Write close failed and reach max times. id: %v, ptr: %p, error: %v",
 				c.typ, failedRetry, c.id, c, errNet)
 			return errors.New("writer close failed")
 		}
 
-		if _, ok := err.(*websocket.CloseError); ok || c.IsStopped() {
+		if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway,
+			websocket.CloseNoStatusReceived) || c.IsStopped() {
 			log.Debug(ctx, "%v Websocket close error. client id: %v, ptr: %p, error: %v",
 				c.typ, c.id, c, err)
 		} else {
