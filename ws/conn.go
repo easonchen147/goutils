@@ -337,7 +337,7 @@ func (c *Connection) writeToConnection() {
 		c.closeWrite(ctx)
 		close(c.writeDone)
 
-		log.Info(ctx, "%v write finish. id: %v, ptr: %p", c.typ, c.id, c)
+		log.Debug(ctx, "%v write finish. id: %v, ptr: %p", c.typ, c.id, c)
 
 		if c.typ == CONN_KIND_CLIENT {
 			c.KickServer()
@@ -396,7 +396,7 @@ func (c *Connection) writeToConnection() {
 func (c *Connection) readFromConnection() {
 	defer func() {
 		close(c.readDone)
-		log.Info(context.Background(), "%v read finish. id: %v, ptr: %p", c.typ, c.id, c)
+		log.Debug(context.Background(), "%v read finish. id: %v, ptr: %p", c.typ, c.id, c)
 
 		if c.typ == CONN_KIND_CLIENT {
 			c.KickServer()
@@ -479,7 +479,7 @@ func (c *Connection) readMsgFromWs() {
 			}
 
 			if _, ok := err.(*websocket.CloseError); ok || c.IsStopped() {
-				log.Info(ctx, "%v Conn closed. id: %v, ptr: %p, msgType: %v, err: %v",
+				log.Debug(ctx, "%v Conn closed. id: %v, ptr: %p, msgType: %v, err: %v",
 					c.typ, c.id, c, messageType, err)
 			} else {
 				log.Warn(ctx, "%v Read failed. id: %v, ptr: %p, msgType: %v, err: %v",
@@ -650,7 +650,7 @@ func (c *Connection) doSendMsgToWs(ctx context.Context, data []byte) error {
 		}
 
 		if _, ok := err.(*websocket.CloseError); ok || c.IsStopped() {
-			log.Info(ctx, "%v Websocket close error. client id: %v, ptr: %p, error: %v",
+			log.Debug(ctx, "%v Websocket close error. client id: %v, ptr: %p, error: %v",
 				c.typ, c.id, c, err)
 		} else {
 			log.Warn(ctx, "%v Writer close failed. id: %v, ptr: %p, error: %v", c.typ, c.id, c, err)
