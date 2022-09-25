@@ -20,6 +20,7 @@ import (
 
 var (
 	msgHandlers sync.Map // map[int32]MsgHandler
+	msgHeadFlag = [2]byte{0xFE, 0xEE}
 )
 
 type connKind int8
@@ -509,13 +510,17 @@ func (c *Connection) readMessageData() (int, []byte, error) {
 		return messageType, nil, err
 	}
 
-	var lengthBytes [4]byte
-	lengthSlice := lengthBytes[:]
-	_, err = io.ReadAtLeast(reader, lengthSlice, 4)
+	var headBytes [6]byte
+	_, err = io.ReadAtLeast(reader, headBytes[:], 6)
 	if err != nil && !c.isErrEOF(err) {
 		return messageType, nil, err
 	}
 
+	if headBytes[0] != msgHeadFlag[0] || headBytes[1] != msgHeadFlag[1] {
+		return messageType, nil, errors.New("packet head flag error")
+	}
+
+	lengthSlice := headBytes[2:6]
 	var length uint32
 	binary.Read(bytes.NewReader(lengthSlice), binary.LittleEndian, &length)
 
@@ -605,13 +610,14 @@ func (c *Connection) doSendMsgToWs(ctx context.Context, data []byte) error {
 		return err
 	}
 
-	var lengthBytes [4]byte
-	lengthSlice := lengthBytes[:]
+	var headBytes [6]byte
+	headBytes[0] = msgHeadFlag[0]
+	headBytes[1] = msgHeadFlag[1]
+	binary.LittleEndian.PutUint32(headBytes[2:6], uint32(len(data)))
 
-	binary.LittleEndian.PutUint32(lengthSlice, uint32(len(data)))
-	_, err = w.Write(lengthSlice)
+	_, err = w.Write(headBytes[:])
 	if err != nil {
-		log.Warn(ctx, "%v Write packet length to writer failed. error: %v", c.typ, err)
+		log.Warn(ctx, "%v Write packet head to writer failed. error: %v", c.typ, err)
 		return err
 	}
 
