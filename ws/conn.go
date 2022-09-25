@@ -1,9 +1,12 @@
 package ws
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -454,7 +457,8 @@ func (c *Connection) readMsgFromWs() {
 		}
 
 		c.conn.SetReadDeadline(time.Now().Add(c.readWait))
-		messageType, data, err := c.conn.ReadMessage()
+		messageType, data, err := c.readMessageData() //c.conn.ReadMessage()
+
 		if err != nil {
 			if errNet, ok := err.(net.Error); (ok && errNet.Timeout()) || (ok && errNet.Temporary()) {
 				log.Debug(ctx, "%v Read failure. retryTimes: %v, id: %v, ptr: %p messageType: %v, error: %v",
@@ -487,6 +491,38 @@ func (c *Connection) readMsgFromWs() {
 			})
 		}
 	}
+}
+
+func (c *Connection) isErrEOF(err error) bool {
+	if err == io.EOF {
+		return true
+	}
+	return false
+}
+
+func (c *Connection) readMessageData() (int, []byte, error) {
+	var reader io.Reader
+	messageType, reader, err := c.conn.NextReader()
+	if err != nil && !c.isErrEOF(err) {
+		return messageType, nil, err
+	}
+
+	var lengthBytes [4]byte
+	lengthSlice := lengthBytes[:]
+	_, err = io.ReadAtLeast(reader, lengthSlice, 4)
+	if err != nil && !c.isErrEOF(err) {
+		return messageType, nil, err
+	}
+
+	var length uint32
+	binary.Read(bytes.NewReader(lengthSlice), binary.LittleEndian, &length)
+
+	dataBuffer := make([]byte, length)
+	_, err = io.ReadAtLeast(reader, dataBuffer, int(length))
+	if err != nil && !c.isErrEOF(err) {
+		return messageType, nil, err
+	}
+	return messageType, dataBuffer, nil
 }
 
 func (c *Connection) processMsg(ctx context.Context, msgData []byte) {
@@ -563,9 +599,19 @@ func (c *Connection) doSendMsgToWs(ctx context.Context, data []byte) error {
 		return err
 	}
 
+	var lengthBytes [4]byte
+	lengthSlice := lengthBytes[:]
+
+	binary.LittleEndian.PutUint32(lengthSlice, uint32(len(data)))
+	_, err = w.Write(lengthSlice)
+	if err != nil {
+		log.Warn(ctx, "%v Write packet length to writer failed. error: %v", c.typ, err)
+		return err
+	}
+
 	_, err = w.Write(data)
 	if err != nil {
-		log.Warn(ctx, "%v Write msgSendWrapper to writer failed. message: %v, error: %v", c.typ, len(data), err)
+		log.Warn(ctx, "%v Write payload to writer failed. message: %v, error: %v", c.typ, len(data), err)
 		return err
 	}
 
