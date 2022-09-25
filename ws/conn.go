@@ -64,11 +64,12 @@ type Connection struct {
 	commonData     map[string]interface{}
 
 	//net params
-	maxFailureRetry  int           //重试次数
-	readWait         time.Duration //读等待
-	writeWait        time.Duration //写等待
-	temporaryWait    time.Duration //网络抖动重试等待
-	compressionLevel int
+	maxFailureRetry     int           //重试次数
+	readWait            time.Duration //读等待
+	writeWait           time.Duration //写等待
+	temporaryWait       time.Duration //网络抖动重试等待
+	compressionLevel    int
+	maxMessageBytesSize uint32
 
 	//server internal param
 	upgrader *websocket.Upgrader //custome upgrader
@@ -158,6 +159,7 @@ func (c *Connection) Reset() {
 	c.dialer = nil
 	c.dialRetryNum = 0
 	c.dialRetryInterval = 0
+	c.maxMessageBytesSize = defaultMaxMessageBytesSize
 }
 
 func (c *Connection) createPullChannelMap() {
@@ -516,6 +518,10 @@ func (c *Connection) readMessageData() (int, []byte, error) {
 
 	var length uint32
 	binary.Read(bytes.NewReader(lengthSlice), binary.LittleEndian, &length)
+
+	if length > c.maxMessageBytesSize {
+		return messageType, nil, errors.New("packet size exceed max")
+	}
 
 	dataBuffer := make([]byte, length)
 	_, err = io.ReadAtLeast(reader, dataBuffer, int(length))

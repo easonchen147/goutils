@@ -161,6 +161,12 @@ func NetTemporaryWaitOption(temporaryWait time.Duration) ConnOption {
 	}
 }
 
+func MaxMessageBytesSizeOption(size uint32) ConnOption {
+	return func(con *Connection) {
+		con.maxMessageBytesSize = size
+	}
+}
+
 //服务端特有
 //upgrader定制
 func SrvUpgraderOption(upgrader *websocket.Upgrader) ConnOption {

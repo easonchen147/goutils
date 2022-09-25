@@ -69,6 +69,7 @@ func DialConnect(ctx context.Context, sUrl string, header http.Header, opts ...C
 	connection.dialRetryNum = 3
 	connection.dialRetryInterval = time.Second
 	connection.compressionLevel = 1
+	connection.maxMessageBytesSize = defaultMaxMessageBytesSize
 
 	defaultNetParamsOption()(connection)
 
