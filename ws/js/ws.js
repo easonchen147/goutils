@@ -6,6 +6,7 @@ class WsConnection {
         this.establishHandler = null;
         this.errHandler = null;
         this.closeHandler = null;
+        this.packetHeadFlag = new Uint8Array([254,238]);
     }
 
     registerMsgHandler(protocolId, handler) {
@@ -41,7 +42,9 @@ class WsConnection {
         };
 
         this.ws.onmessage = (e) => {
-            let wsMessage = proto.ws.P_MESSAGE.deserializeBinary(e.data);
+            let msgPack = this.unpackMsg(e.data);
+            //console.log(msgPack);
+            let wsMessage = proto.ws.P_MESSAGE.deserializeBinary(msgPack.dataBuffer);
             let handler = this.msgHandler[wsMessage.getProtocolId()];
             if (handler) {
                 handler(this.ws, wsMessage.getData());
@@ -59,35 +62,28 @@ class WsConnection {
         let wsMessage = new proto.ws.P_MESSAGE;
         wsMessage.setProtocolId(protocolId);
         wsMessage.setData(data);
-        this.ws.send(wsMessage.serializeBinary());
+        this.ws.send(this.packMsg(wsMessage.serializeBinary()));
     }
 
-    stringToArrayBuffer(s) {
-        var i = s.length;
-        var n = 0;
-        var ba = new Array()
-        for (var j = 0; j < i;) {
-            var c = s.codePointAt(j);
-            if (c < 128) {
-                ba[n++] = c;
-                j++;
-            } else if ((c > 127) && (c < 2048)) {
-                ba[n++] = (c >> 6) | 192;
-                ba[n++] = (c & 63) | 128;
-                j++;
-            } else if ((c > 2047) && (c < 65536)) {
-                ba[n++] = (c >> 12) | 224;
-                ba[n++] = ((c >> 6) & 63) | 128;
-                ba[n++] = (c & 63) | 128;
-                j++;
-            } else {
-                ba[n++] = (c >> 18) | 240;
-                ba[n++] = ((c >> 12) & 63) | 128;
-                ba[n++] = ((c >> 6) & 63) | 128;
-                ba[n++] = (c & 63) | 128;
-                j += 2;
-            }
-        }
-        return new Uint8Array(ba);
+    unpackMsg(buffer){
+        let packetHeadFlag = buffer.slice(0,2);
+        const dv = new DataView(buffer.slice(2,6));
+        const packetLength = dv.getUint32(0, /* little endian data */ true);
+        let dataBuffer = buffer.slice(6);
+        return {
+            packetHeadFlag,
+            packetLength,
+            dataBuffer
+        };
+    }
+
+    packMsg(buffer){
+        let dataArray = new Uint8Array(buffer);
+
+        let packetLength = new Uint8Array(4);
+        new DataView(packetLength.buffer).setUint32(0, buffer.byteLength, true /* littleEndian */);
+
+        let packet = new Uint8Array([...this.packetHeadFlag, ...packetLength, ...dataArray]);
+        return packet.buffer;
     }
 }
