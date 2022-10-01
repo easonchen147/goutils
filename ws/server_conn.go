@@ -38,12 +38,12 @@ func (c *Connection) KickClient(displace bool) {
 	ClientConnHub.unregisterConn(c)
 }
 
-func AcceptGin(ctx *gin.Context, meta ConnectionMeta, opts ...ConnOption) (*Connection, error) {
+func AcceptGin(ctx *gin.Context, meta ConnectionMeta, opts ...ConnOption) (IConnection, error) {
 	meta.clientIp = ctx.ClientIP()
 	return Accept(ctx, ctx.Writer, ctx.Request, meta, opts...)
 }
 
-func Accept(ctx context.Context, w http.ResponseWriter, r *http.Request, meta ConnectionMeta, opts ...ConnOption) (*Connection, error) {
+func Accept(ctx context.Context, w http.ResponseWriter, r *http.Request, meta ConnectionMeta, opts ...ConnOption) (IConnection, error) {
 	if meta.clientIp == "" {
 		meta.clientIp = ip.RemoteAddress(r)
 	}

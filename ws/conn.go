@@ -23,9 +23,9 @@ var (
 	msgHeadFlag = [2]byte{0xFE, 0xEE}
 )
 
-type connKind int8
+type ConnType int8
 
-func (t connKind) String() string {
+func (t ConnType) String() string {
 	if t == CONN_KIND_CLIENT {
 		return "client"
 	}
@@ -38,7 +38,7 @@ func (t connKind) String() string {
 //websocket连接封装
 type Connection struct {
 	id             string
-	typ            connKind
+	typ            ConnType
 	meta           ConnectionMeta        //连接信息
 	conn           *websocket.Conn       //websocket connection
 	stopped        int32                 //flag connection stopped and will disconnect
@@ -122,6 +122,10 @@ func (c *Connection) Charset() int {
 
 func (c *Connection) ClientIp() string {
 	return c.meta.clientIp
+}
+
+func (c *Connection) ConnType() ConnType {
+	return c.typ
 }
 
 func (c *Connection) Reset() {
@@ -208,7 +212,7 @@ func (c *Connection) RefreshDeadline() {
 	c.conn.SetWriteDeadline(t.Add(c.writeWait))
 }
 
-func (c *Connection) SendMsg(ctx context.Context, payload *Message, sc SendCallback) (err error) {
+func (c *Connection) SendMsg(ctx context.Context, payload IMessage, sc SendCallback) (err error) {
 	defer log.Recover(ctx, func(e interface{}) string {
 		err = fmt.Errorf("%v", e)
 		return fmt.Sprintf("%v send msg failed, sendBuffer chan is closed. error: %v", c.typ, err)
@@ -218,9 +222,10 @@ func (c *Connection) SendMsg(ctx context.Context, payload *Message, sc SendCallb
 		return errors.New("connect is stopped")
 	}
 
-	payload.sc = sc
+	message := payload.(*Message)
+	message.sc = sc
 
-	c.sendBuffer <- payload
+	c.sendBuffer <- message
 	return nil
 }
 
